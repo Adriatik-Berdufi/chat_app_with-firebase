@@ -1,5 +1,8 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:chat_app/widgets/user_image_picker.dart';
+import 'dart:io';
 
 final _firebase = FirebaseAuth.instance;
 
@@ -19,6 +22,7 @@ class _AuthScreenState extends State<AuthScreen> {
   var _enteredEmail = '';
   var _enteredPassword = '';
   var _enteredPasswordConfirmation = '';
+  File? _selectedImage;
 
   // Variabili di stato per la visibilità delle password
   var _isPasswordVisible = false;
@@ -30,7 +34,9 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!isValid) {
       return;
     }
-
+    if (!_isLogin && _selectedImage == null) {
+      return;
+    }
     _form.currentState!.save();
 
     // Verifica che le password corrispondano solo in modalità Signup
@@ -47,7 +53,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isLogin) {
         // Login
-        await _firebase.signInWithEmailAndPassword(
+        final userCredentials = await _firebase.signInWithEmailAndPassword(
           email: _enteredEmail,
           password: _enteredPassword,
         );
@@ -58,10 +64,15 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       } else {
         // Creazione account
-        await _firebase.createUserWithEmailAndPassword(
-          email: _enteredEmail,
-          password: _enteredPassword,
-        );
+        final userCredentials = await _firebase.createUserWithEmailAndPassword(
+            email: _enteredEmail, password: _enteredPassword);
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('user_images')
+            .child('${userCredentials.user!.uid}.jpg');
+        await storageRef.putFile(_selectedImage!);
+        final imageUrl = await storageRef.getDownloadURL();
+        print(imageUrl);
 
         // Assicurarsi che il widget sia ancora montato
         if (mounted) {
@@ -132,6 +143,10 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (!_isLogin)
+                            UserImagePicker(onPickedImage: (pickedImage) {
+                              _selectedImage = pickedImage;
+                            }),
                           TextFormField(
                             decoration: const InputDecoration(
                                 labelText: 'Email Address'),
